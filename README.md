@@ -24,7 +24,7 @@ To get a local copy up and running, follow these simple steps.
 
 1.  Clone the repo
     ```sh
-    git clone https://github.com/your_username/velox.git
+    git clone https://github.com/mdumair-sk/velox.git
     ```
 2.  Open the project in Android Studio.
 3.  Let Android Studio download the dependencies and sync the project.
