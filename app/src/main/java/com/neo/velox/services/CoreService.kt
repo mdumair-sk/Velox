@@ -6,20 +6,24 @@ import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.database.Cursor
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.media.ToneGenerator
+import android.net.Uri
 import android.os.BatteryManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.ContactsContract
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
+import android.telecom.TelecomManager
 import android.util.Log
 import android.view.KeyEvent
 import androidx.core.app.NotificationCompat
@@ -31,6 +35,7 @@ import java.util.Locale
 class CoreService : LifecycleService(), RecognitionListener, TextToSpeech.OnInitListener {
 
     private lateinit var audioManager: AudioManager
+    private lateinit var telecomManager: TelecomManager
     private var speechRecognizer: SpeechRecognizer? = null
     private lateinit var tts: TextToSpeech
     private lateinit var callHandler: CallHandler
@@ -49,7 +54,7 @@ class CoreService : LifecycleService(), RecognitionListener, TextToSpeech.OnInit
     private val mainHandler = Handler(Looper.getMainLooper())
     private var reinitRunnable: Runnable? = null
 
-    // NEW: Store last partial result as fallback
+    // Store last partial result as fallback
     private var lastPartialResult: String? = null
 
     private enum class TtsAction { NONE, LISTEN, CLOSE }
@@ -67,6 +72,7 @@ class CoreService : LifecycleService(), RecognitionListener, TextToSpeech.OnInit
         super.onCreate()
         checkSpeechRecognitionAvailability()
         audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        telecomManager = getSystemService(Context.TELECOM_SERVICE) as TelecomManager
         callHandler = CallHandler(this) { callerName -> handleIncomingCall(callerName) }
         shakeTrigger = ShakeTrigger(this) {
             if (!isIncomingCallMode) startVoiceCommandFlow()
@@ -161,9 +167,7 @@ class CoreService : LifecycleService(), RecognitionListener, TextToSpeech.OnInit
             return
         }
 
-        // Reset partial result tracking
         lastPartialResult = null
-
         reinitRunnable?.let { mainHandler.removeCallbacks(it) }
         reinitRunnable = null
 
@@ -222,11 +226,8 @@ class CoreService : LifecycleService(), RecognitionListener, TextToSpeech.OnInit
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-US")
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-
-            // Shorter timeouts since partial results are working
             putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 3000)
             putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1500)
-
             putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, false)
         }
 
@@ -276,7 +277,6 @@ class CoreService : LifecycleService(), RecognitionListener, TextToSpeech.OnInit
             processCommand(command)
         } else {
             Log.w(TAG, "No final results from recognizer")
-            // Try using last partial result as fallback
             if (!lastPartialResult.isNullOrEmpty()) {
                 Log.d(TAG, "Using partial result as fallback: $lastPartialResult")
                 processCommand(lastPartialResult!!)
@@ -305,7 +305,6 @@ class CoreService : LifecycleService(), RecognitionListener, TextToSpeech.OnInit
 
         when (error) {
             SpeechRecognizer.ERROR_NO_MATCH -> {
-                // Use partial result if available
                 if (!lastPartialResult.isNullOrEmpty()) {
                     Log.d(TAG, "No match error, but using partial result: $lastPartialResult")
                     processCommand(lastPartialResult!!)
@@ -316,7 +315,6 @@ class CoreService : LifecycleService(), RecognitionListener, TextToSpeech.OnInit
             }
             SpeechRecognizer.ERROR_NETWORK,
             SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> {
-                // Network errors - still try partial result
                 if (!lastPartialResult.isNullOrEmpty()) {
                     Log.d(TAG, "Network error, using partial result: $lastPartialResult")
                     processCommand(lastPartialResult!!)
@@ -392,6 +390,9 @@ class CoreService : LifecycleService(), RecognitionListener, TextToSpeech.OnInit
             }
         } else {
             when {
+                cmd.contains("call") -> {
+                    handleCallCommand(cmd)
+                }
                 cmd.contains("time") -> {
                     val time = SimpleDateFormat("h:mm a", Locale.US).format(Date())
                     speakText("It is $time", TtsAction.CLOSE)
@@ -418,6 +419,103 @@ class CoreService : LifecycleService(), RecognitionListener, TextToSpeech.OnInit
                     speakText("Unknown command", TtsAction.CLOSE)
                 }
             }
+        }
+    }
+
+    private fun handleCallCommand(command: String) {
+        // Extract the contact name or number from the command
+        // Examples: "call john", "call john doe", "call 1234567890"
+        val callKeywords = listOf("call", "dial", "phone")
+        var contactQuery = command
+
+        for (keyword in callKeywords) {
+            if (contactQuery.contains(keyword)) {
+                contactQuery = contactQuery.substringAfter(keyword).trim()
+                break
+            }
+        }
+
+        if (contactQuery.isEmpty()) {
+            speakText("Who should I call?", TtsAction.CLOSE)
+            return
+        }
+
+        Log.d(TAG, "Attempting to call: $contactQuery")
+
+        // Check if it's a phone number (digits only)
+        val digitsOnly = contactQuery.replace(Regex("[^0-9]"), "")
+        if (digitsOnly.length >= 10) {
+            // It's a phone number
+            makePhoneCall(digitsOnly, contactQuery)
+        } else {
+            // It's a contact name - search contacts
+            val phoneNumber = findContactNumber(contactQuery)
+            if (phoneNumber != null) {
+                makePhoneCall(phoneNumber, contactQuery)
+            } else {
+                speakText("Contact $contactQuery not found", TtsAction.CLOSE)
+            }
+        }
+    }
+
+    private fun findContactNumber(contactName: String): String? {
+        val uri = ContactsContract.CommonDataKinds.Phone.CONTENT_URI
+        val projection = arrayOf(
+            ContactsContract.CommonDataKinds.Phone.NUMBER,
+            ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME
+        )
+
+        val selection = "${ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME} LIKE ?"
+        val selectionArgs = arrayOf("%$contactName%")
+
+        var cursor: Cursor? = null
+        try {
+            cursor = contentResolver.query(uri, projection, selection, selectionArgs, null)
+
+            if (cursor != null && cursor.moveToFirst()) {
+                val numberIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
+                val nameIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)
+
+                if (numberIndex >= 0 && nameIndex >= 0) {
+                    val number = cursor.getString(numberIndex)
+                    val name = cursor.getString(nameIndex)
+                    Log.d(TAG, "Found contact: $name with number: $number")
+                    return number
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error searching contacts", e)
+        } finally {
+            cursor?.close()
+        }
+
+        return null
+    }
+
+    private fun makePhoneCall(phoneNumber: String, displayName: String) {
+        try {
+            // Use TelecomManager to place call directly (works from background)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                val uri = Uri.fromParts("tel", phoneNumber, null)
+                telecomManager.placeCall(uri, null)
+                speakText("Calling $displayName", TtsAction.CLOSE)
+                Log.d(TAG, "Initiated call to $phoneNumber using TelecomManager")
+            } else {
+                // Fallback for older Android versions
+                val callIntent = Intent(Intent.ACTION_CALL).apply {
+                    data = Uri.parse("tel:$phoneNumber")
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                startActivity(callIntent)
+                speakText("Calling $displayName", TtsAction.CLOSE)
+                Log.d(TAG, "Initiated call to $phoneNumber using Intent")
+            }
+        } catch (e: SecurityException) {
+            Log.e(TAG, "Missing CALL_PHONE permission", e)
+            speakText("Cannot make calls, permission denied", TtsAction.CLOSE)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error making phone call", e)
+            speakText("Call failed", TtsAction.CLOSE)
         }
     }
 
