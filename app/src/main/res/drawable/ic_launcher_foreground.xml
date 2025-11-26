@@ -1,0 +1,28 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Guidelines: The main icon content should fit within the center 66dp (21 to 87) -->
+
+    <!-- Left Arm of the V (Solid sleek curve) - Changed fill to WHITE -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M38,32
+                           L46,32
+                           L54,72
+                           C55,77 59,77 60,72
+                           L68,32
+                           L76,32
+                           L64,80
+                           C60,90 52,90 48,80
+                           Z" />
+
+    <!-- Optional: A small "Notification Dot" or "Mic" accent at the top center - Changed fill to WHITE -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M57,28
+                           A3,3 0 1,1 51,28
+                           A3,3 0 1,1 57,28 Z" />
+</vector>

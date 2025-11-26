@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/rootLayout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#121212"
+    android:gravity="center"
+    android:padding="32dp">
+
+    <TextView
+        android:id="@+id/tvTitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="VELOX"
+        android:textColor="#FFFFFF"
+        android:textSize="40sp"
+        android:letterSpacing="0.1"
+        android:textStyle="bold"
+        android:layout_marginBottom="8dp" />
+
+    <TextView
+        android:id="@+id/tvStatus"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Ready"
+        android:textColor="#FF5252"
+        android:textSize="18sp"
+        android:layout_marginBottom="24dp" />
+
+    <!-- Accessibility Status -->
+    <TextView
+        android:id="@+id/tvAccessibilityStatus"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="✗ Volume Button Trigger: Inactive"
+        android:textColor="#FF5252"
+        android:textSize="14sp"
+        android:layout_marginBottom="16dp" />
+
+    <Button
+        android:id="@+id/btnEnableAccessibility"
+        android:layout_width="match_parent"
+        android:layout_height="60dp"
+        android:text="Enable Volume Button Trigger"
+        android:textSize="14sp"
+        android:backgroundTint="#FF9800"
+        android:textColor="#FFFFFF"
+        android:layout_marginBottom="32dp" />
+
+    <Button
+        android:id="@+id/btnTestVoice"
+        android:layout_width="match_parent"
+        android:layout_height="80dp"
+        android:text="LISTEN NOW (TEST)"
+        android:textSize="22sp"
+        android:textStyle="bold"
+        android:backgroundTint="#1976D2"
+        android:textColor="#FFFFFF"
+        android:layout_marginBottom="24dp" />
+
+    <Button
+        android:id="@+id/btnStart"
+        android:layout_width="match_parent"
+        android:layout_height="60dp"
+        android:text="Start Background Service"
+        android:textSize="16sp"
+        android:backgroundTint="#2E7D32"
+        android:layout_marginBottom="16dp" />
+
+    <Button
+        android:id="@+id/btnStop"
+        android:layout_width="match_parent"
+        android:layout_height="60dp"
+        android:text="Stop Service"
+        android:textSize="16sp"
+        android:backgroundTint="#C62828"
+        android:layout_marginBottom="32dp" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="1. Enable Volume Button Trigger\n2. Start Service\n3. While cycling: Hold Volume Down for 1 second\n4. Say 'time', 'battery', 'next', 'pause', etc."
+        android:textColor="#B0BEC5"
+        android:gravity="left"
+        android:lineSpacingMultiplier="1.4"
+        android:textSize="14sp" />
+
+</LinearLayout>

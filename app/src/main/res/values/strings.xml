@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Velox</string>
+    <string name="accessibility_service_description">Allows Velox to detect volume button long-press for hands-free voice control while cycling. Hold Volume Down for 1 second to activate voice assistant. This service does not collect or access any personal data.</string>
+</resources>
